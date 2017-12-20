@@ -1753,6 +1753,7 @@ int commander_thread_main(int argc, char *argv[])
 		set_tune_override(TONE_STARTUP_TUNE); //normal boot tune
 	} else {
 			// sensor diagnostics done continuously, not just at boot so don't warn about any issues just yet
+			//提前检查，根据设定，检查飞机的各种传感器，这里的传感器检查跟imu的检查，应该是相同的传感器，我觉得是。
 			status_flags.condition_system_sensors_initialized = Commander::preflightCheck(&mavlink_log_pub, true,
 				checkAirspeed, (status.rc_input_mode == vehicle_status_s::RC_IN_MODE_DEFAULT), !status_flags.circuit_breaker_engaged_gpsfailure_check,
 				false, is_vtol(&status), false, false, hrt_elapsed_time(&commander_boot_timestamp));
@@ -1761,6 +1762,7 @@ int commander_thread_main(int argc, char *argv[])
 
 	// user adjustable duration required to assert arm/disarm via throttle/rudder stick
 	int32_t rc_arm_hyst = 100;
+	//rc杆需要保持多少秒来，进行这个检查
 	param_get(_param_rc_arm_hyst, &rc_arm_hyst);
 	rc_arm_hyst *= COMMANDER_MONITORING_LOOPSPERMSEC;
 
@@ -1853,13 +1855,14 @@ int commander_thread_main(int argc, char *argv[])
 
 				/* check and update system / component ID */
 				int32_t sys_id = 0;
+				//这个系统id是为了决定到底要运行哪个mavlink
 				param_get(_param_system_id, &sys_id);
 				status.system_id = sys_id;
 
 				int32_t comp_id = 0;
 				param_get(_param_component_id, &comp_id);
 				status.component_id = comp_id;
-
+				//传感器检查配置参数
 				get_circuit_breaker_params();
 
 				status_changed = true;
@@ -1931,6 +1934,7 @@ int commander_thread_main(int argc, char *argv[])
 			param_get(_param_max_imu_gyr_diff, &max_imu_gyr_diff);
 
 			/* failsafe response to loss of navigation accuracy */
+			//巡航，返回home点，降落
 			param_get(_param_posctl_nav_loss_act, &posctl_nav_loss_act);
 
 			param_init_forced = false;
@@ -2019,6 +2023,7 @@ int commander_thread_main(int argc, char *argv[])
 					telemetry_preflight_checks_reported[i] = hotplug_timeout;
 
 					/* provide RC and sensor status feedback to the user */
+					//如果是硬件仿真，则传感器不进行仿真
 					if (status.hil_state == vehicle_status_s::HIL_STATE_ON) {
 						/* HITL configuration: check only RC input */
 						(void)Commander::preflightCheck(&mavlink_log_pub, false, false,
@@ -2047,7 +2052,7 @@ int commander_thread_main(int argc, char *argv[])
 				}
 			}
 		}
-
+		//传感器数据是否更新
 		orb_check(sensor_sub, &updated);
 
 		if (updated) {
@@ -2060,6 +2065,7 @@ int commander_thread_main(int argc, char *argv[])
 			 * */
 			hrt_abstime baro_timestamp = sensors.timestamp + sensors.baro_timestamp_relative;
 			if (hrt_elapsed_time(&baro_timestamp) < FAILSAFE_DEFAULT_TIMEOUT) {
+				//假设开始时没有一个有效的气压传感器
 				/* handle the case where baro was regained */
 				if (status_flags.barometer_failure) {
 					status_flags.barometer_failure = false;
@@ -2078,7 +2084,7 @@ int commander_thread_main(int argc, char *argv[])
 				}
 			}
 		}
-
+		//检查气压数据是否更新，获取气压数据
 		orb_check(diff_pres_sub, &updated);
 
 		if (updated) {
@@ -2089,7 +2095,7 @@ int commander_thread_main(int argc, char *argv[])
 
 		if (updated) {
 			orb_copy(ORB_ID(system_power), system_power_sub, &system_power);
-
+            //有点疑问，如果连接usb是有效的的，那么这个power为什么设置为false，注意这这个变量出现的地方
 			if (hrt_elapsed_time(&system_power.timestamp) < 200000) {
 				if (system_power.servo_valid &&
 				    !system_power.brick_valid &&
@@ -2168,9 +2174,11 @@ int commander_thread_main(int argc, char *argv[])
 		if (updated) {
 			/* vtol status changed */
 			orb_copy(ORB_ID(vtol_vehicle_status), vtol_vehicle_status_sub, &vtol_status);
+			//在固定翼模式
 			status.vtol_fw_permanent_stab = vtol_status.fw_permanent_stab;
 
 			/* Make sure that this is only adjusted if vehicle really is of type vtol */
+			//旋翼模式，过度模式，固定翼模式
 			if (is_vtol(&status)) {
 				status.is_rotary_wing = vtol_status.vtol_in_rw_mode;
 				status.in_transition_mode = vtol_status.vtol_in_trans_mode;
@@ -2194,7 +2202,7 @@ int commander_thread_main(int argc, char *argv[])
 			orb_copy(ORB_ID(vehicle_global_position), global_position_sub, &global_position);
 			gpos_last_update_time_us = hrt_absolute_time();
 		}
-
+		//检查全球位置和速度的有效性
 		// Perform a separate timeout validity test on the global position data.
 		// This is necessary because the global position message is by definition valid if published.
 		if ((hrt_absolute_time() - gpos_last_update_time_us) > 1000000) {

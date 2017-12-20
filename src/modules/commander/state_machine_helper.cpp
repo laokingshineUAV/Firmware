@@ -218,6 +218,7 @@ transition_result_t arming_state_transition(vehicle_status_s *status,
 						valid_transition = false;
 
 						// Fail transition if we need safety switch press
+						//改变安全开关的状态
 
 					} else if (safety->safety_switch_available && !safety->safety_off) {
 
@@ -239,6 +240,7 @@ transition_result_t arming_state_transition(vehicle_status_s *status,
 
 						// Fail transition if power levels on the avionics rail
 						// are measured but are insufficient
+						warnx("the avionics_power_rail_voltage is %f", avionics_power_rail_voltage);
 						if (status_flags->condition_power_input_valid && (avionics_power_rail_voltage > 0.0f)) {
 							// Check avionics rail voltages
 							if (avionics_power_rail_voltage < 4.5f) {
@@ -264,7 +266,7 @@ transition_result_t arming_state_transition(vehicle_status_s *status,
 				new_arming_state = vehicle_status_s::ARMING_STATE_STANDBY_ERROR;
 			}
 		}
-
+		warnx("the hil_state is %d", status->hil_state);
 		// HIL can always go to standby
 		if (status->hil_state == vehicle_status_s::HIL_STATE_ON && new_arming_state == vehicle_status_s::ARMING_STATE_STANDBY) {
 			valid_transition = true;
